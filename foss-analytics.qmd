@@ -1,0 +1,347 @@
+---
+title: 'Containerized FOSS Analytical DBMS solutions w duckdb and minio'
+title-slide-attributes:
+    data-background-image: assets/logo.svg
+    data-background-size: contain
+    data-background-opacity: "0.5"
+author: Markus Skyttner / markus@redpill-linpro.com
+date: '2022-10-14'
+format: 
+  revealjs:
+    css: assets/css/styles.css
+    logo: assets/logo.svg
+    mathjax: default
+    self-contained: true
+    transition: fade
+    scrollable: true    
+---
+
+```{r setup, include=FALSE}
+#devtools::install_github("mskyttner/rltheme")
+library(rltheme)
+knitr::opts_chunk$set(echo = FALSE)
+red <- tolower(rltheme::palette_rl(1))
+emphasize <- function(txt) 
+  sprintf("<font color='%s'>\n%s\n</font>", red, txt)
+```
+
+# {data-background=assets/rl-gradient-bg.png data-background-size=cover .smaller}
+
+<center>
+
+![](assets/logo.png){width=400}
+
+</center>
+
+## Om mig {.flexbox .vcenter}
+
+> __Uppdrag på KTH__: 
+Ursprungligen "Årlig Bibliometrisk Uppföljning på KTH" / "Annual Bibliometric Monitoring"
+
+Nu: `r emphasize("Datadriven analys och uppföljning av KTHs forskning")`
+
+<center>
+
+[![](assets/img/kth-map.png){width=400}](https://www.google.com/maps/place/59%C2%B021'05.3%22N+18%C2%B004'02.1%22E/@59.3481525,18.0685303,16z/data=!4m5!3m4!1s0x0:0x0!8m2!3d59.351479!4d18.067243?hl=en-US)
+
+</center>
+
+## Om FOSS analytics med duckdb och minio {data-background=assets/bg/glasses.png data-background-size=cover .smaller}
+
+- Vad är "Analytical DBMS" och "object storage"?
+- Vad är `duckdb` och `minio` och varför dessa komponenter?
+- Demo med lite exempeldata
+- Workshop - prova på?
+
+## Varför använda "Analytical DBMS"? {.smaller}
+
+Vill kunna jobba med __snabba frågor mot stora dataset__ för att göra analyser snabbt. Här finns många FOSS-lösningar, både molnbaserade kommersiella och hybridlösningar.
+
+- Ett populärt FOSS-verktyg för att jobba med större dataset är [`Apache Spark`](https://spark.apache.org/) där bla DataBricks erbjuder en tjänstelösning. 
+- Ett annat är bra verktyg är [`ClickHouse`](https://clickhouse.com/blog/getting-data-into-clickhouse-part-3-s3) som också har en molnlösning. 
+- Det finns också Postgresbaserade alternativ med tjänstelösningar i molnet som [`GreenPlum`](https://greenplum.org/).
+
+Data samlas gärna så att den är åtkomlig via S3-protokollet.
+
+- Olika molnlösningar finns från Amazon, GCP, Azure, DO, [`Backblaze`](https://www.backblaze.com/) etc.
+
+> Ofta ligger fokus på __omfattande snabba läsningar__ snarare än många samtidiga skrivningar till datakällan.
+
+## Vad är `minio`?
+
+En populär FOSS-komponent för S3-lagring. Mer eller mindre standard för "S3"-kompatibel lagring m server, CLI-verktyg mm.
+
+- Länk: [Websida om `minio` och deras "billion pulls"](https://blog.min.io/one-billion-docker-pulls/)
+
+> Kan man köra databaser mot "object storage"? Blir det inte långsamt?
+
+- Länk: [Jämförelse `minio` vs amazon-s3](https://blog.min.io/databases-on-object-storage/)
+
+## Vad är `duckdb`? {.smaller}
+
+Varför är `duckdb` intressant? 
+
+- Länk: [Benchmark Analytical DBMS från ClickHouse](https://benchmark.clickhouse.com/#eyJzeXN0ZW0iOnsiQXRoZW5hIChwYXJ0aXRpb25lZCkiOmZhbHNlLCJBdGhlbmEgKHNpbmdsZSkiOmZhbHNlLCJBdXJvcmEgZm9yIE15U1FMIjpmYWxzZSwiQXVyb3JhIGZvciBQb3N0Z3JlU1FMIjpmYWxzZSwiQnl0ZUhvdXNlIjpmYWxzZSwiQ2l0dXMiOmZhbHNlLCJjbGlja2hvdXNlLWxvY2FsIChwYXJ0aXRpb25lZCkiOmZhbHNlLCJjbGlja2hvdXNlLWxvY2FsIChzaW5nbGUpIjpmYWxzZSwiQ2xpY2tIb3VzZSI6dHJ1ZSwiQ2xpY2tIb3VzZSAoenN0ZCkiOmZhbHNlLCJDbGlja0hvdXNlICh0dW5lZCkiOmZhbHNlLCJDbGlja0hvdXNlIENsb3VkIjpmYWxzZSwiQ3JhdGVEQiI6ZmFsc2UsIkRhdGFiZW5kIjpmYWxzZSwiZGF0YWZ1c2lvbiI6ZmFsc2UsIkRydWlkIjpmYWxzZSwiRHVja0RCIjp0cnVlLCJFbGFzdGljc2VhcmNoIjpmYWxzZSwiRWxhc3RpY3NlYXJjaCAodHVuZWQpIjpmYWxzZSwiR3JlZW5wbHVtIjpmYWxzZSwiSGVhdnlBSSI6ZmFsc2UsIkluZm9icmlnaHQiOmZhbHNlLCJNYXJpYURCIENvbHVtblN0b3JlIjpmYWxzZSwiTWFyaWFEQiI6ZmFsc2UsIk1vbmV0REIiOmZhbHNlLCJNb25nb0RCIjpmYWxzZSwiTXlTUUwgKE15SVNBTSkiOmZhbHNlLCJNeVNRTCI6ZmFsc2UsIlBpbm90IjpmYWxzZSwiUG9zdGdyZVNRTCI6dHJ1ZSwiUXVlc3REQiAocGFydGl0aW9uZWQpIjpmYWxzZSwiUXVlc3REQiI6ZmFsc2UsIlJlZHNoaWZ0IjpmYWxzZSwiU2VsZWN0REIiOmZhbHNlLCJTaW5nbGVTdG9yZSI6ZmFsc2UsIlNub3dmbGFrZSI6ZmFsc2UsIlNRTGl0ZSI6dHJ1ZSwiU3RhclJvY2tzICh0dW5lZCkiOmZhbHNlLCJTdGFyUm9ja3MiOmZhbHNlLCJUaW1lc2NhbGVEQiAoY29tcHJlc3Npb24pIjpmYWxzZSwiVGltZXNjYWxlREIiOmZhbHNlfSwidHlwZSI6eyJzdGF0ZWxlc3MiOnRydWUsIm1hbmFnZWQiOnRydWUsIkphdmEiOnRydWUsImNvbHVtbi1vcmllbnRlZCI6dHJ1ZSwiQysrIjp0cnVlLCJNeVNRTCBjb21wYXRpYmxlIjp0cnVlLCJyb3ctb3JpZW50ZWQiOnRydWUsIkMiOnRydWUsIlBvc3RncmVTUUwgY29tcGF0aWJsZSI6dHJ1ZSwiQ2xpY2tIb3VzZSBkZXJpdmF0aXZlIjp0cnVlLCJlbWJlZGRlZCI6dHJ1ZSwiUnVzdCI6dHJ1ZSwic2VhcmNoIjp0cnVlLCJkb2N1bWVudCI6dHJ1ZSwidGltZS1zZXJpZXMiOnRydWV9LCJtYWNoaW5lIjp7InNlcnZlcmxlc3MiOnRydWUsIjE2YWN1Ijp0cnVlLCJMIjp0cnVlLCJNIjp0cnVlLCJTIjp0cnVlLCJYUyI6dHJ1ZSwiYzZhLjR4bGFyZ2UsIDUwMGdiIGdwMiI6dHJ1ZSwiYzZhLm1ldGFsLCA1MDBnYiBncDIiOnRydWUsIjE2IHRocmVhZHMiOnRydWUsIjIwIHRocmVhZHMiOnRydWUsIjI0IHRocmVhZHMiOnRydWUsIjI4IHRocmVhZHMiOnRydWUsIjMwIHRocmVhZHMiOnRydWUsIjQ4IHRocmVhZHMiOnRydWUsImYxNnMgdjIiOnRydWUsImM2YS40eGxhcmdlLCAxNTAwZ2IgZ3AyIjp0cnVlLCJyYTMuMTZ4bGFyZ2UiOnRydWUsInJhMy40eGxhcmdlIjp0cnVlLCJyYTMueGxwbHVzIjp0cnVlLCJTMiI6dHJ1ZSwiUzI0Ijp0cnVlLCIyWEwiOnRydWUsIjNYTCI6dHJ1ZSwiNFhMIjp0cnVlLCJYTCI6dHJ1ZX0sImNsdXN0ZXJfc2l6ZSI6eyIxIjp0cnVlLCIyIjp0cnVlLCI0Ijp0cnVlLCI4Ijp0cnVlLCIxMiI6dHJ1ZSwiMTYiOnRydWUsIjMyIjp0cnVlLCI2NCI6dHJ1ZSwiMTI4Ijp0cnVlLCJzZXJ2ZXJsZXNzIjp0cnVlLCJ1bmRlZmluZWQiOnRydWV9LCJtZXRyaWMiOiJjb2xkIiwicXVlcmllcyI6W3RydWUsdHJ1ZSx0cnVlLHRydWUsdHJ1ZSx0cnVlLHRydWUsdHJ1ZSx0cnVlLHRydWUsdHJ1ZSx0cnVlLHRydWUsdHJ1ZSx0cnVlLHRydWUsdHJ1ZSx0cnVlLHRydWUsdHJ1ZSx0cnVlLHRydWUsdHJ1ZSx0cnVlLHRydWUsdHJ1ZSx0cnVlLHRydWUsdHJ1ZSx0cnVlLHRydWUsdHJ1ZSx0cnVlLHRydWUsdHJ1ZSx0cnVlLHRydWUsdHJ1ZSx0cnVlLHRydWUsdHJ1ZSx0cnVlLHRydWVdfQ==)
+
+- Länk: [In-process OLAP presentation från https://nyhackr.org/past-talks.html](https://youtu.be/Z-6SnP6yzgo?t=1600)
+
+- Länk: [WASM-variant av duckdb-skalet](https://shell.duckdb.org)
+
+Ju långsammare nätverk desto längre till data...
+
+> "Bring the engine to the data"
+
+... vi använder därför containers på samma SDN (Software Defined Network) för __låg nätverkslatens__ mellan databasmotor och data så blir det praktiskt och snabbt, och kan köras på hemmaplan och/eller i de dimmiga molnen.
+
+# Kombinationen `duckdb` och `minio` {.smaller}
+
+Behöver man kolumnbaserat/OLAP eller radorienterad/OLTP, eller både och?
+
+> En kombination av `minio` och `duckdb` ger en minimal men kraftfull hybrid-moln-kapabel lösning baserad på FOSS-containers som erbjuder många integrationsmöjligheter även mot OLTP-källor, S3/parquet mm.
+
+Lite som en "bare bones" Apache Spark-miljö. Där man kan jobba med data från olika miljöer såsom R, Python, Java, Go, Node etc eller exv använda verktyg som CloudBeaver för DBAs mm (se oneliner nedan).
+
+```bash
+mkdir -p /tmp/workspace && \
+  podman  run --name cloudbeaver --rm -ti \
+    -p 8080:8978 -v /tmp/workspace:/opt/cloudbeaver/workspace \
+    dbeaver/cloudbeaver:latest
+```
+
+## Ladda exempeldata i "duckdb" {.smaller}
+
+Vi använder lite exempeldata från digitala vetenskapliga arkivet.
+
+```{r, echo=TRUE}
+
+library(kthcorpus) # from https://github.com/kth-library/kthcorpus
+
+# get some example publication data from DiVA (digitala vetenskapliga arkivet)
+publications <- kth_diva_pubs()
+authors <- kth_diva_authors()
+
+```
+
+Mjukvaran från [duckdb](https://duckdb.org) är en kolumnorienterad inbäddningsbar "in-process" OLAP-motor. Här kopplar vi direkt till ovanstående data (in-memory) och kör en klassisk SQL-fråga:
+
+```{r, echo=TRUE}
+library(dplyr)
+library(duckdb)
+
+# load it into a RDBMS (duckdb)
+con <- dbConnect(duckdb())
+duckdb_register(con, "publications", publications)
+duckdb_register(con, "authors", authors)
+
+# now we can use custom SQL queries
+con %>% dbGetQuery("SELECT count(*) from authors a left join publications p on a.PID = p.PID")
+```
+
+## Mer än SQL? Tidyverse
+
+[Tidyverse](https://www.tidyverse.org/) erbjuder kraftfulla API:er som gör allt SQL kan och mer därtill på ett ergonomiskt sätt.
+
+```{r, echo=TRUE}
+# tidyverse APIs used for data manipulation with "chaining" (using pipes)
+top_three <- 
+  con %>% 
+  tbl("publications") %>% 
+  group_by(PublicationType) %>%
+  tally() %>%
+  head(3)
+
+print(top_three)
+
+```
+## Quarto för webvänlig presentation
+
+Visning av denna data med [quarto](https://quarto.org) och klassisk pivottabell i interaktivt HTML-format:
+
+```{r}
+#| output-location: slide
+#| echo: TRUE
+
+# data summary
+mysummary <- 
+  publications %>% 
+  group_by(
+    PublicationType, Language, 
+    Funder, Categories, Reviewed) %>% 
+  tally() 
+
+# display as a pivot table
+rpivotTable::rpivotTable(
+  mysummary, 
+  width = "100%", height = "500px",
+  rows = "PublicationType",
+  cols = c("Language")
+)
+
+```
+
+## Dataformat - Arrow, Parquet mm {.smaller}
+
+Vi kan använda moderna format såsom Arrow och Parquet med `duckdb`:
+
+```{r}
+#| output-location: slide
+#| echo: TRUE
+
+library(arrow)
+
+# write parquet data from in-memory data
+write_parquet(publications, "/tmp/publications.parquet")
+write_parquet(authors, "/tmp/authors.parquet")
+
+# read this data from parquet format using duckdb
+con <- dbConnect(duckdb())
+
+mypubs <- con %>% 
+  dbGetQuery("SELECT * FROM PARQUET_SCAN('/tmp/publications.parquet')")
+
+# query using tidyverse APIs
+mypubs |> 
+  filter(grepl("Java", Abstract)) |>
+  arrange(desc(PublicationDate)) |>
+  slice(1:50) |> 
+  select(Title, PublicationDate, Abstract) |> 
+  mutate(Abstract = gsub("</?p>", "", Abstract)) |> 
+  DT::datatable()
+
+dbDisconnect(con)
+
+```
+
+## Container setup för `minio` och `duckdb`
+
+- För `minio` - använd antingen officiella imagen från Docker Hub, eller överväg en "trimmad", se länk: [https://github.com/KTH-Library/docker-alpine-minio-client](https://github.com/KTH-Library/docker-alpine-minio-client) - som då behöver hållas up-to-date exv m en GitHub Action med schemalagt bygge.
+
+- Varför lägga till en container image med `duckdb`? Eftersom då flyttas `minio` server och `duckdb` tillsammans inom samma nätverk och låg latens uppnås mellan dessa.
+
+## Exempel på docker-compose.yml {.smaller}
+
+> Exempel på en sådan setup av minio och duckdb mm finns i repot här <https://github.com/mskyttner/duckdbrest>:
+
+Vi kan exv köra dessa tjänster tillsammans (duckdb m webinterface via gotty, minio, postgres och nginx):
+
+```yaml
+version: '3.7'
+
+services:
+
+  gotty:
+    image: duckdbrest:v0.5.1
+    ports:
+      - "8080:1294"
+    command: sh -c "envsubst < /data/init.sql > ~/.duckdbrc && gotty --port ${PORT:-1294} --permit-write --reconnect duckdb -unsigned -interactive myduck.db -readonly"
+    environment:
+      - MC_HOST_s3=http://minioadmin:minioadmin@minio:9000
+      - S3_ENDPOINT='minio:9000'
+      - S3_USER='minioadmin'
+      - S3_PASS='minioadmin'
+      - S3_USE_SSL=false
+      - S3_REGION=''
+      - S3_URL_STYLE='path'
+      - S3_BUCKET=demo
+    volumes:
+      - ./init.sql:/data/init.sql
+
+  bashapi:
+    image: duckdbrest:v0.5.1
+    ports:
+      - "8181:8181"
+    command: bash -c "cd /bash-cli-api && DDB_PATH=/data/myduck.db ./index.sh"
+
+  sherver:
+    image: duckdbrest:v0.5.1
+    ports:
+      - "8282:8282"
+    command: bash -c "cd /sherver && ./sherver.sh 8282 2> /proc/1/fd/1"
+
+  minio:
+    image: quay.io/minio/minio
+    command: server /data --console-address ":9001"
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+      - MINIO_API_SELECT_PARQUET=on
+      - MINIO_BROWSER_REDIRECT_URL=http://localhost/minio
+    ports:
+      - 9000:9000
+      - 9001:9001
+    volumes:
+      - ./s3:/data
+
+  nginx:
+    image: nginx:alpine
+    volumes:
+      - ./mitm.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - 80:80
+
+  postgres:
+    image: postgres:14.5-alpine
+    environment:
+      POSTGRES_DB: 'post'
+      POSTGRES_USER: 'post'
+      POSTGRES_PASSWORD: 'post'
+    ports:
+      - 5432:5432
+```
+
+## Frågor från `duckdb` mot data i S3, postgres etc {.smaller}
+
+Om vi laddar data till Postgres.... exv dessa tidigare två dataset...
+
+```{r}
+#| echo: TRUE
+#| eval: FALSE
+
+library(DBI)
+
+con <- dbConnect(
+  drv = RPostgres::Postgres(), 
+  host = "127.0.0.1", port = 5432, 
+  user = "post", password = "post")
+
+con %>% dbListTables()
+
+con %>% dbWriteTable("authors", authors)
+con %>% dbWriteTable("publications", publications)
+
+con %>% dbListTables()
+
+dbDisconnect(con)
+
+```
+
+## Join av data i postgres och S3/parquet
+
+... då kan vi sedan använda `duckdb` för att ställa en fråga där vanliga duckdb-tabeller, fjärran S3-data och data i Postgres och SQLite kan kombineras effektivt utan flera steg av mellanlagring.
+
+Förenklat exempel på fråga att använda i "websocket gotty-klienten":
+
+```bash
+select Title from postgres_scan('dbname=post host=postgres user=post password=post', 'public', 'authors') a left join (select * from 's3://demo/publications.parquet') p on a.PID = p.PID limit 5;
+```
+
+## Framtiden med WASM, quarto mm {data-background=assets/plant.png data-background-size=cover}
+
+- Det kommer ett [`duckdb`-paket på pyodide](https://github.com/pyodide/pyodide/pull/2961), "work in progress"
+
+- Kommer då kunna användas i [quarto-dokument](https://quarto.org/) med extensions för "live documents" med inbäddade appar, se [detta exempel](https://quarto-ext.github.io/shinylive/) med [källkod här](https://github.com/quarto-ext/shinylive) - en app som då kan deployas på "statisk sajt".
+
+- Denna presentation är ett "quarto"-dokument (skrivs i markdown med inbäddad kod, typ som en "Python notebook" men använder inte ett binärt format).
+
+## Prova på? {background-image=assets/bg/bridge.png background-opacity=0.5}
+
+Komponenter finns här:
+
+- Länk: [minio](https://min.io)
+- Länk: [duckdb](https://duckdb.org)
+- Länk: [quarto](https://quarto.org)
+
+Repositories med material finns här:
+
+- Länk: [duckdbrest](https://github.com/mskyttner/duckdbrest)
+- Länk: [alpine-minio-client](https://github.com/KTH-Library/docker-alpine-minio-client)
